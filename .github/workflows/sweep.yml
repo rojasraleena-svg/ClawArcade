@@ -4,17 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       experiments:
-        description: 'JSON array of hyperparameter sets to try. Defaults to a smart sweep.'
+        description: 'JSON array of hyperparameter sets. Default: auto smart sweep.'
         required: false
         default: 'auto'
       epochs:
-        description: 'Max epochs for each run (1-80)'
+        description: 'Max epochs per run (1-80)'
         required: false
         default: '40'
   schedule:
-    # Run a batch every day at 3:00 UTC
-    - cron: '0 3 * * *'
+    # Every 4 hours: 0,4,8,12,16,20 UTC
+    - cron: '0 */4 * * *'
 
+# Public repo + contents:write → no billing impact, can auto-commit
 permissions:
   contents: write
 
@@ -40,46 +41,52 @@ jobs:
           MAX_EPOCHS=${{ github.event.inputs.epochs || '40' }}
 
           if [ "${{ github.event.inputs.experiments }}" != "auto" ] && [ "${{ github.event.inputs.experiments }}" != "" ]; then
-            # User provided custom experiments
             echo "${{ github.event.inputs.experiments }}" > /tmp/experiments.json
           else
-            # Smart sweep: cover the hyperparameter space systematically
             python3 -c "
-          import json, itertools
+          import json, random
 
-          lr_vals     = [0.001, 0.005, 0.01, 0.02, 0.05, 0.1]
-          wd_vals     = [0.0, 1e-4, 5e-4, 1e-3, 5e-3]
-          bs_vals     = [32, 64, 128, 256]
-          mom_vals    = [0.85, 0.9, 0.95]
-          epochs      = ${MAX_EPOCHS}
-
+          random.seed(42)
+          epochs = ${MAX_EPOCHS}
           experiments = []
-          # Phase 1: lr sweep with defaults (6 runs)
-          for lr in lr_vals:
+
+          # Phase 1: lr sweep (6 runs) — find the right learning rate first
+          for lr in [0.001, 0.005, 0.01, 0.02, 0.05, 0.1]:
               experiments.append({'lr': lr, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
 
-          # Phase 2: weight decay sweep around best lr (5 runs)
-          for wd in wd_vals:
+          # Phase 2: weight decay sweep with promising lr (5 runs)
+          for wd in [0.0, 1e-4, 5e-4, 1e-3, 5e-3]:
               experiments.append({'lr': 0.01, 'weight_decay': wd, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
 
           # Phase 3: batch size sweep (4 runs)
-          for bs in bs_vals:
+          for bs in [32, 64, 128, 256]:
               experiments.append({'lr': 0.01, 'weight_decay': 0.0, 'batch_size': bs, 'epochs': epochs, 'momentum': 0.9})
 
           # Phase 4: momentum sweep (3 runs)
-          for mom in mom_vals:
+          for mom in [0.85, 0.9, 0.95]:
               experiments.append({'lr': 0.01, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': mom})
 
-          # Phase 5: promising combos (hand-picked based on CIFAR-10 literature)
-          promising = [
-              {'lr': 0.01,  'weight_decay': 5e-4, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9},
-              {'lr': 0.02,  'weight_decay': 1e-3, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9},
-              {'lr': 0.05,  'weight_decay': 5e-4, 'batch_size': 64,  'epochs': epochs, 'momentum': 0.9},
-              {'lr': 0.01,  'weight_decay': 1e-3, 'batch_size': 64,  'epochs': epochs, 'momentum': 0.95},
-              {'lr': 0.02,  'weight_decay': 5e-4, 'batch_size': 64,  'epochs': epochs, 'momentum': 0.95},
-              {'lr': 0.01,  'weight_decay': 5e-4, 'batch_size': 256, 'epochs': epochs, 'momentum': 0.9},
-          ]
-          experiments.extend(promising)
+          # Phase 5: curated combos from CIFAR-10 best practices (6 runs)
+          for cfg in [
+              {'lr': 0.01,  'weight_decay': 5e-4, 'batch_size': 128, 'momentum': 0.9},
+              {'lr': 0.02,  'weight_decay': 1e-3, 'batch_size': 128, 'momentum': 0.9},
+              {'lr': 0.05,  'weight_decay': 5e-4, 'batch_size': 64,  'momentum': 0.9},
+              {'lr': 0.01,  'weight_decay': 1e-3, 'batch_size': 64,  'momentum': 0.95},
+              {'lr': 0.02,  'weight_decay': 5e-4, 'batch_size': 64,  'momentum': 0.95},
+              {'lr': 0.01,  'weight_decay': 5e-4, 'batch_size': 256, 'momentum': 0.9},
+          ]:
+              cfg['epochs'] = epochs
+              experiments.append(cfg)
+
+          # Phase 6: random exploration (6 runs) — cover the tails
+          for _ in range(6):
+              experiments.append({
+                  'lr': round(random.choice([0.001,0.002,0.005,0.008,0.01,0.015,0.02,0.03,0.05,0.08,0.1]), 4),
+                  'weight_decay': round(random.choice([0.0,1e-5,5e-5,1e-4,2e-4,5e-4,1e-3,2e-3,5e-3]), 5),
+                  'batch_size': random.choice([32, 64, 128, 256]),
+                  'epochs': epochs,
+                  'momentum': round(random.choice([0.8,0.85,0.9,0.92,0.95,0.99]), 2),
+              })
 
           with open('/tmp/experiments.json', 'w') as f:
               json.dump(experiments, f, indent=2)
@@ -138,7 +145,7 @@ jobs:
               sys.stdout.flush()
 
           print()
-          print('=== SUMMARY (sorted by best_acc) ===')
+          print('=== TOP 10 (sorted by best_acc) ===')
           with open('/tmp/results.csv') as f:
               lines = f.readlines()
           header = lines[0]
@@ -156,28 +163,40 @@ jobs:
           cp /tmp/results.csv "results/sweep-${TIMESTAMP}.csv"
           cp /tmp/experiments.json "results/sweep-${TIMESTAMP}.json"
 
-          # Update leaderboard
-          echo "# Cifarcade Leaderboard" > results/LEADERBOARD.md
+          # Rebuild leaderboard from ALL sweep results
+          echo "# 🦞 Cifarcade Leaderboard" > results/LEADERBOARD.md
           echo "" >> results/LEADERBOARD.md
-          echo "Auto-generated from sweep experiments." >> results/LEADERBOARD.md
+          echo "Auto-generated from sweep experiments. Updated: $(date -u)" >> results/LEADERBOARD.md
           echo "" >> results/LEADERBOARD.md
-          echo "| Rank | LR | Weight Decay | Batch Size | Momentum | Epochs | Best Acc | Final Acc |" >> results/LEADERBOARD.md
-          echo "|------|-----|-------------|-----------|----------|--------|----------|-----------|" >> results/LEADERBOARD.md
+          echo "| Rank | LR | Weight Decay | Batch Size | Momentum | Epochs | Best Acc | Final Acc | Sweep |" >> results/LEADERBOARD.md
+          echo "|------|-----|-------------|-----------|----------|--------|----------|-----------|-------|" >> results/LEADERBOARD.md
 
           python3 -c "
-          with open('/tmp/results.csv') as f:
-              lines = f.readlines()
-          data = sorted(lines[1:], key=lambda x: float(x.split(',')[6]), reverse=True)
-          for rank, line in enumerate(data[:20], 1):
-              parts = line.strip().split(',')
-              print(f'| {rank} | {parts[1]} | {parts[2]} | {parts[3]} | {parts[5]} | {parts[4]} | {parts[6]} | {parts[7]} |')
-          " >> results/LEADERBOARD.md
+          import csv, os, glob
 
-          echo "" >> results/LEADERBOARD.md
-          echo "Last updated: $(date -u)" >> results/LEADERBOARD.md
+          all_rows = []
+          for f in sorted(glob.glob('results/sweep-*.csv')):
+              sweep_name = os.path.basename(f).replace('.csv','').replace('sweep-','')
+              with open(f) as fh:
+                  reader = csv.DictReader(fh)
+                  for row in reader:
+                      row['sweep'] = sweep_name
+                      all_rows.append(row)
+
+          all_rows.sort(key=lambda x: float(x['best_acc']), reverse=True)
+          seen = set()
+          rank = 0
+          for row in all_rows[:30]:
+              key = (row['lr'], row['weight_decay'], row['batch_size'], row['momentum'])
+              if key in seen:
+                  continue
+              seen.add(key)
+              rank += 1
+              print(f'| {rank} | {row[\"lr\"]} | {row[\"weight_decay\"]} | {row[\"batch_size\"]} | {row[\"momentum\"]} | {row[\"epochs\"]} | {row[\"best_acc\"]} | {row[\"final_acc\"]} | {row[\"sweep\"]} |')
+          " >> results/LEADERBOARD.md
 
           git config user.name "openclaw-bot"
           git config user.email "openclaw-bot@users.noreply.github.com"
           git add results/
-          git commit -m "🦞 sweep ${TIMESTAMP}: auto hyperparameter search results"
+          git commit -m "🦞 sweep ${TIMESTAMP}: auto hyperparameter search results" || echo "No new results to commit"
           git push
