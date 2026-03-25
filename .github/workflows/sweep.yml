@@ -1,0 +1,183 @@
+name: Cifarcade Sweep
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiments:
+        description: 'JSON array of hyperparameter sets to try. Defaults to a smart sweep.'
+        required: false
+        default: 'auto'
+      epochs:
+        description: 'Max epochs for each run (1-80)'
+        required: false
+        default: '40'
+  schedule:
+    # Run a batch every day at 3:00 UTC
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          cd 101-CIFAR
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Generate experiment configs
+        id: configs
+        run: |
+          cd 101-CIFAR
+          MAX_EPOCHS=${{ github.event.inputs.epochs || '40' }}
+
+          if [ "${{ github.event.inputs.experiments }}" != "auto" ] && [ "${{ github.event.inputs.experiments }}" != "" ]; then
+            # User provided custom experiments
+            echo "${{ github.event.inputs.experiments }}" > /tmp/experiments.json
+          else
+            # Smart sweep: cover the hyperparameter space systematically
+            python3 -c "
+          import json, itertools
+
+          lr_vals     = [0.001, 0.005, 0.01, 0.02, 0.05, 0.1]
+          wd_vals     = [0.0, 1e-4, 5e-4, 1e-3, 5e-3]
+          bs_vals     = [32, 64, 128, 256]
+          mom_vals    = [0.85, 0.9, 0.95]
+          epochs      = ${MAX_EPOCHS}
+
+          experiments = []
+          # Phase 1: lr sweep with defaults (6 runs)
+          for lr in lr_vals:
+              experiments.append({'lr': lr, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
+
+          # Phase 2: weight decay sweep around best lr (5 runs)
+          for wd in wd_vals:
+              experiments.append({'lr': 0.01, 'weight_decay': wd, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
+
+          # Phase 3: batch size sweep (4 runs)
+          for bs in bs_vals:
+              experiments.append({'lr': 0.01, 'weight_decay': 0.0, 'batch_size': bs, 'epochs': epochs, 'momentum': 0.9})
+
+          # Phase 4: momentum sweep (3 runs)
+          for mom in mom_vals:
+              experiments.append({'lr': 0.01, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': mom})
+
+          # Phase 5: promising combos (hand-picked based on CIFAR-10 literature)
+          promising = [
+              {'lr': 0.01,  'weight_decay': 5e-4, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9},
+              {'lr': 0.02,  'weight_decay': 1e-3, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9},
+              {'lr': 0.05,  'weight_decay': 5e-4, 'batch_size': 64,  'epochs': epochs, 'momentum': 0.9},
+              {'lr': 0.01,  'weight_decay': 1e-3, 'batch_size': 64,  'epochs': epochs, 'momentum': 0.95},
+              {'lr': 0.02,  'weight_decay': 5e-4, 'batch_size': 64,  'epochs': epochs, 'momentum': 0.95},
+              {'lr': 0.01,  'weight_decay': 5e-4, 'batch_size': 256, 'epochs': epochs, 'momentum': 0.9},
+          ]
+          experiments.extend(promising)
+
+          with open('/tmp/experiments.json', 'w') as f:
+              json.dump(experiments, f, indent=2)
+          print(f'Generated {len(experiments)} experiments')
+          "
+          fi
+
+      - name: Run experiments
+        run: |
+          cd 101-CIFAR
+          echo "=== CIFAR-10 Cifarcade Sweep ==="
+          echo "Date: $(date -u)"
+          echo ""
+
+          RESULTS="/tmp/results.csv"
+          echo "run,lr,weight_decay,batch_size,epochs,momentum,best_acc,final_acc,status" > "$RESULTS"
+
+          python3 -c "
+          import json, subprocess, sys
+
+          with open('/tmp/experiments.json') as f:
+              experiments = json.load(f)
+
+          results = []
+          for i, cfg in enumerate(experiments):
+              run_id = i + 1
+              cmd = [
+                  'python3', 'train.py',
+                  '--lr', str(cfg['lr']),
+                  '--weight-decay', str(cfg['weight_decay']),
+                  '--batch-size', str(cfg['batch_size']),
+                  '--epochs', str(cfg['epochs']),
+                  '--momentum', str(cfg['momentum']),
+              ]
+              print(f'--- Run {run_id}/{len(experiments)}: lr={cfg[\"lr\"]} wd={cfg[\"weight_decay\"]} bs={cfg[\"batch_size\"]} mom={cfg[\"momentum\"]} ---')
+
+              result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+
+              if result.returncode == 0:
+                  lines = result.stdout.strip().split('\n')
+                  epochs = [int(x) for x in lines[0].split(',')]
+                  accs = [float(x) for x in lines[1].split(',')]
+                  best_acc = max(accs)
+                  final_acc = accs[-1]
+                  status = 'ok'
+                  print(f'  best={best_acc:.4f} final={final_acc:.4f} (evaluated at {len(accs)} checkpoints)')
+              else:
+                  best_acc = 0.0
+                  final_acc = 0.0
+                  status = f'error: {result.stderr[:100]}'
+                  print(f'  FAILED: {status}')
+
+              with open('/tmp/results.csv', 'a') as f:
+                  f.write(f'{run_id},{cfg[\"lr\"]},{cfg[\"weight_decay\"]},{cfg[\"batch_size\"]},{cfg[\"epochs\"]},{cfg[\"momentum\"]},{best_acc:.4f},{final_acc:.4f},{status}\n')
+
+              sys.stdout.flush()
+
+          print()
+          print('=== SUMMARY (sorted by best_acc) ===')
+          with open('/tmp/results.csv') as f:
+              lines = f.readlines()
+          header = lines[0]
+          data = sorted(lines[1:], key=lambda x: float(x.split(',')[6]), reverse=True)
+          print(header.strip())
+          for line in data[:10]:
+              print(line.strip())
+          "
+
+      - name: Commit results
+        run: |
+          cd 101-CIFAR
+          mkdir -p results
+          TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+          cp /tmp/results.csv "results/sweep-${TIMESTAMP}.csv"
+          cp /tmp/experiments.json "results/sweep-${TIMESTAMP}.json"
+
+          # Update leaderboard
+          echo "# Cifarcade Leaderboard" > results/LEADERBOARD.md
+          echo "" >> results/LEADERBOARD.md
+          echo "Auto-generated from sweep experiments." >> results/LEADERBOARD.md
+          echo "" >> results/LEADERBOARD.md
+          echo "| Rank | LR | Weight Decay | Batch Size | Momentum | Epochs | Best Acc | Final Acc |" >> results/LEADERBOARD.md
+          echo "|------|-----|-------------|-----------|----------|--------|----------|-----------|" >> results/LEADERBOARD.md
+
+          python3 -c "
+          with open('/tmp/results.csv') as f:
+              lines = f.readlines()
+          data = sorted(lines[1:], key=lambda x: float(x.split(',')[6]), reverse=True)
+          for rank, line in enumerate(data[:20], 1):
+              parts = line.strip().split(',')
+              print(f'| {rank} | {parts[1]} | {parts[2]} | {parts[3]} | {parts[5]} | {parts[4]} | {parts[6]} | {parts[7]} |')
+          " >> results/LEADERBOARD.md
+
+          echo "" >> results/LEADERBOARD.md
+          echo "Last updated: $(date -u)" >> results/LEADERBOARD.md
+
+          git config user.name "openclaw-bot"
+          git config user.email "openclaw-bot@users.noreply.github.com"
+          git add results/
+          git commit -m "🦞 sweep ${TIMESTAMP}: auto hyperparameter search results"
+          git push
