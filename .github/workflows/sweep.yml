@@ -10,7 +10,7 @@ on:
       epochs:
         description: 'Max epochs per run (1-80)'
         required: false
-        default: '40'
+        default: '50'
   schedule:
     # Every 4 hours: 0,4,8,12,16,20 UTC
     - cron: '0 */4 * * *'
@@ -38,7 +38,7 @@ jobs:
         id: configs
         run: |
           cd 101-CIFAR
-          MAX_EPOCHS=${{ github.event.inputs.epochs || '40' }}
+          MAX_EPOCHS=${{ github.event.inputs.epochs || '50' }}
 
           if [ "${{ github.event.inputs.experiments }}" != "auto" ] && [ "${{ github.event.inputs.experiments }}" != "" ]; then
             echo "${{ github.event.inputs.experiments }}" > /tmp/experiments.json
@@ -46,46 +46,48 @@ jobs:
             python3 -c "
           import json, random
 
-          random.seed(42)
+          random.seed(2026)
           epochs = ${MAX_EPOCHS}
           experiments = []
 
-          # Phase 1: lr sweep (6 runs) — find the right learning rate first
-          for lr in [0.001, 0.005, 0.01, 0.02, 0.05, 0.1]:
+          # ─── Phase 1: Fine-grained lr sweep around sweet spot ───
+          # Best so far: lr=0.005, wd=0.0, bs=128, mom=0.9 → 70.21%
+          for lr in [0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.010]:
               experiments.append({'lr': lr, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
 
-          # Phase 2: weight decay sweep with promising lr (5 runs)
-          for wd in [0.0, 1e-4, 5e-4, 1e-3, 5e-3]:
-              experiments.append({'lr': 0.01, 'weight_decay': wd, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
+          # ─── Phase 2: weight decay with best lr=0.005 ───
+          for wd in [0.0, 1e-5, 5e-5, 1e-4, 2e-4, 5e-4]:
+              experiments.append({'lr': 0.005, 'weight_decay': wd, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
 
-          # Phase 3: batch size sweep (4 runs)
+          # ─── Phase 3: batch size with lr=0.005 ───
           for bs in [32, 64, 128, 256]:
-              experiments.append({'lr': 0.01, 'weight_decay': 0.0, 'batch_size': bs, 'epochs': epochs, 'momentum': 0.9})
+              experiments.append({'lr': 0.005, 'weight_decay': 0.0, 'batch_size': bs, 'epochs': epochs, 'momentum': 0.9})
 
-          # Phase 4: momentum sweep (3 runs)
-          for mom in [0.85, 0.9, 0.95]:
-              experiments.append({'lr': 0.01, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': mom})
+          # ─── Phase 4: momentum with lr=0.005 ───
+          for mom in [0.85, 0.88, 0.90, 0.92, 0.95]:
+              experiments.append({'lr': 0.005, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': mom})
 
-          # Phase 5: curated combos from CIFAR-10 best practices (6 runs)
+          # ─── Phase 5: more epochs for top configs ───
           for cfg in [
-              {'lr': 0.01,  'weight_decay': 5e-4, 'batch_size': 128, 'momentum': 0.9},
-              {'lr': 0.02,  'weight_decay': 1e-3, 'batch_size': 128, 'momentum': 0.9},
-              {'lr': 0.05,  'weight_decay': 5e-4, 'batch_size': 64,  'momentum': 0.9},
-              {'lr': 0.01,  'weight_decay': 1e-3, 'batch_size': 64,  'momentum': 0.95},
-              {'lr': 0.02,  'weight_decay': 5e-4, 'batch_size': 64,  'momentum': 0.95},
-              {'lr': 0.01,  'weight_decay': 5e-4, 'batch_size': 256, 'momentum': 0.9},
+              {'lr': 0.005, 'weight_decay': 0.0,  'batch_size': 128, 'momentum': 0.9},   # best
+              {'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},   # 2nd best region
+              {'lr': 0.01,  'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},   # previous 2nd
+              {'lr': 0.003, 'weight_decay': 0.0,  'batch_size': 128, 'momentum': 0.9},   # explore low lr
+              {'lr': 0.007, 'weight_decay': 0.0,  'batch_size': 128, 'momentum': 0.9},   # explore mid lr
+              {'lr': 0.005, 'weight_decay': 0.0,  'batch_size': 64,  'momentum': 0.9},   # smaller batch
+              {'lr': 0.005, 'weight_decay': 0.0,  'batch_size': 256, 'momentum': 0.9},   # larger batch
           ]:
-              cfg['epochs'] = epochs
+              cfg['epochs'] = 60  # longer training for promising configs
               experiments.append(cfg)
 
-          # Phase 6: random exploration (6 runs) — cover the tails
+          # ─── Phase 6: focused random exploration in narrowed region ───
           for _ in range(6):
               experiments.append({
-                  'lr': round(random.choice([0.001,0.002,0.005,0.008,0.01,0.015,0.02,0.03,0.05,0.08,0.1]), 4),
-                  'weight_decay': round(random.choice([0.0,1e-5,5e-5,1e-4,2e-4,5e-4,1e-3,2e-3,5e-3]), 5),
-                  'batch_size': random.choice([32, 64, 128, 256]),
+                  'lr': round(random.uniform(0.002, 0.01), 4),
+                  'weight_decay': round(random.choice([0.0, 1e-5, 5e-5, 1e-4, 2e-4]), 5),
+                  'batch_size': random.choice([64, 128, 256]),
                   'epochs': epochs,
-                  'momentum': round(random.choice([0.8,0.85,0.9,0.92,0.95,0.99]), 2),
+                  'momentum': round(random.uniform(0.85, 0.95), 2),
               })
 
           with open('/tmp/experiments.json', 'w') as f:
