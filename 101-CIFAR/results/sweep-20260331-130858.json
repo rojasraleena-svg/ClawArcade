@@ -1,0 +1,254 @@
+[
+  {
+    "lr": 0.002,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.003,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.004,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.006,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.007,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.008,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.01,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 1e-05,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 5e-05,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0001,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0002,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0005,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 32,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 64,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 256,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.85
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.88
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.9
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.92
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "epochs": 50,
+    "momentum": 0.95
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "momentum": 0.9,
+    "epochs": 60
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0001,
+    "batch_size": 128,
+    "momentum": 0.9,
+    "epochs": 60
+  },
+  {
+    "lr": 0.01,
+    "weight_decay": 0.0001,
+    "batch_size": 128,
+    "momentum": 0.9,
+    "epochs": 60
+  },
+  {
+    "lr": 0.003,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "momentum": 0.9,
+    "epochs": 60
+  },
+  {
+    "lr": 0.007,
+    "weight_decay": 0.0,
+    "batch_size": 128,
+    "momentum": 0.9,
+    "epochs": 60
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 64,
+    "momentum": 0.9,
+    "epochs": 60
+  },
+  {
+    "lr": 0.005,
+    "weight_decay": 0.0,
+    "batch_size": 256,
+    "momentum": 0.9,
+    "epochs": 60
+  },
+  {
+    "lr": 0.003,
+    "weight_decay": 0.0002,
+    "batch_size": 256,
+    "epochs": 50,
+    "momentum": 0.91
+  },
+  {
+    "lr": 0.0096,
+    "weight_decay": 1e-05,
+    "batch_size": 256,
+    "epochs": 50,
+    "momentum": 0.91
+  },
+  {
+    "lr": 0.0054,
+    "weight_decay": 0.0002,
+    "batch_size": 256,
+    "epochs": 50,
+    "momentum": 0.93
+  },
+  {
+    "lr": 0.0082,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "epochs": 50,
+    "momentum": 0.89
+  },
+  {
+    "lr": 0.002,
+    "weight_decay": 0.0,
+    "batch_size": 64,
+    "epochs": 50,
+    "momentum": 0.88
+  },
+  {
+    "lr": 0.0028,
+    "weight_decay": 0.0,
+    "batch_size": 256,
+    "epochs": 50,
+    "momentum": 0.9
+  }
+]
