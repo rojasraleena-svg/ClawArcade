@@ -47,47 +47,47 @@ jobs:
           import json, random
 
           random.seed(2026)
-          epochs = ${MAX_EPOCHS}
           experiments = []
 
-          # ─── Phase 1: Fine-grained lr sweep around sweet spot ───
-          # Best so far: lr=0.005, wd=0.0, bs=128, mom=0.9 → 70.21%
-          for lr in [0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.010]:
-              experiments.append({'lr': lr, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
+          # ─── Sweep v3: Focused on discovered sweet spot ───
+          # Best: lr=0.005, wd=0.0001, bs=128, mom=0.9, epochs=60 → 72.07%
+          # 2nd: lr=0.005, wd=0.0, bs=128, mom=0.9 → 71.77% (stable across 4 runs)
+          # bs=128 is clearly optimal (32/64/256 all worse)
+          # wd=0.0001 > wd=0.0 by +0.3%
 
-          # ─── Phase 2: weight decay with best lr=0.005 ───
-          for wd in [0.0, 1e-5, 5e-5, 1e-4, 2e-4, 5e-4]:
-              experiments.append({'lr': 0.005, 'weight_decay': wd, 'batch_size': 128, 'epochs': epochs, 'momentum': 0.9})
+          # ─── Phase 1: Fine-grained lr around 0.005 with wd=0.0001 ───
+          for lr in [0.0035, 0.0040, 0.0045, 0.0050, 0.0055, 0.0060, 0.0065, 0.0070]:
+              experiments.append({'lr': lr, 'weight_decay': 1e-4, 'batch_size': 128, 'epochs': 50, 'momentum': 0.9})
 
-          # ─── Phase 3: batch size with lr=0.005 ───
-          for bs in [32, 64, 128, 256]:
-              experiments.append({'lr': 0.005, 'weight_decay': 0.0, 'batch_size': bs, 'epochs': epochs, 'momentum': 0.9})
+          # ─── Phase 2: wd micro-sweep around 1e-4 with lr=0.005 ───
+          for wd in [5e-5, 7.5e-5, 1e-4, 1.5e-4, 2e-4, 3e-4]:
+              experiments.append({'lr': 0.005, 'weight_decay': wd, 'batch_size': 128, 'epochs': 50, 'momentum': 0.9})
 
-          # ─── Phase 4: momentum with lr=0.005 ───
-          for mom in [0.85, 0.88, 0.90, 0.92, 0.95]:
-              experiments.append({'lr': 0.005, 'weight_decay': 0.0, 'batch_size': 128, 'epochs': epochs, 'momentum': mom})
+          # ─── Phase 3: momentum micro-sweep ───
+          for mom in [0.88, 0.89, 0.90, 0.91, 0.92]:
+              experiments.append({'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'epochs': 50, 'momentum': mom})
 
-          # ─── Phase 5: more epochs for top configs ───
+          # ─── Phase 4: Extended epochs for top configs (bs=128 only to avoid timeout) ───
           for cfg in [
-              {'lr': 0.005, 'weight_decay': 0.0,  'batch_size': 128, 'momentum': 0.9},   # best
-              {'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},   # 2nd best region
-              {'lr': 0.01,  'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},   # previous 2nd
-              {'lr': 0.003, 'weight_decay': 0.0,  'batch_size': 128, 'momentum': 0.9},   # explore low lr
-              {'lr': 0.007, 'weight_decay': 0.0,  'batch_size': 128, 'momentum': 0.9},   # explore mid lr
-              {'lr': 0.005, 'weight_decay': 0.0,  'batch_size': 64,  'momentum': 0.9},   # smaller batch
-              {'lr': 0.005, 'weight_decay': 0.0,  'batch_size': 256, 'momentum': 0.9},   # larger batch
+              {'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},   # 72.07% best
+              {'lr': 0.005, 'weight_decay': 5e-5, 'batch_size': 128, 'momentum': 0.9},   # 71.55%
+              {'lr': 0.0045, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},  # explore slightly lower lr
+              {'lr': 0.0055, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},  # explore slightly higher lr
+              {'lr': 0.005, 'weight_decay': 1.5e-4, 'batch_size': 128, 'momentum': 0.9}, # between best wd values
+              {'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.91},  # slight mom variation
+              {'lr': 0.005, 'weight_decay': 0.0, 'batch_size': 128, 'momentum': 0.9},    # baseline (71.77%)
           ]:
-              cfg['epochs'] = 60  # longer training for promising configs
+              cfg['epochs'] = 65  # push further, keep bs=128
               experiments.append(cfg)
 
-          # ─── Phase 6: focused random exploration in narrowed region ───
-          for _ in range(6):
+          # ─── Phase 5: Focused random in narrowed region ───
+          for _ in range(5):
               experiments.append({
-                  'lr': round(random.uniform(0.002, 0.01), 4),
-                  'weight_decay': round(random.choice([0.0, 1e-5, 5e-5, 1e-4, 2e-4]), 5),
-                  'batch_size': random.choice([64, 128, 256]),
-                  'epochs': epochs,
-                  'momentum': round(random.uniform(0.85, 0.95), 2),
+                  'lr': round(random.uniform(0.004, 0.006), 4),
+                  'weight_decay': round(random.choice([5e-5, 7.5e-5, 1e-4, 1.5e-4, 2e-4]), 5),
+                  'batch_size': 128,
+                  'epochs': random.choice([50, 55, 60, 65]),
+                  'momentum': round(random.uniform(0.88, 0.92), 2),
               })
 
           with open('/tmp/experiments.json', 'w') as f:
@@ -99,7 +99,7 @@ jobs:
       - name: Run experiments
         run: |
           cd 101-CIFAR
-          echo "=== CIFAR-10 Cifarcade Sweep ==="
+          echo "=== CIFAR-10 Cifarcade Sweep v3 ==="
           echo "Date: $(date -u)"
           echo ""
 
@@ -123,7 +123,7 @@ jobs:
                   '--epochs', str(cfg['epochs']),
                   '--momentum', str(cfg['momentum']),
               ]
-              print(f'--- Run {run_id}/{len(experiments)}: lr={cfg[\"lr\"]} wd={cfg[\"weight_decay\"]} bs={cfg[\"batch_size\"]} mom={cfg[\"momentum\"]} ---')
+              print(f'--- Run {run_id}/{len(experiments)}: lr={cfg[\"lr\"]} wd={cfg[\"weight_decay\"]} bs={cfg[\"batch_size\"]} ep={cfg[\"epochs\"]} mom={cfg[\"momentum\"]} ---')
 
               result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
@@ -200,5 +200,5 @@ jobs:
           git config user.name "openclaw-bot"
           git config user.email "openclaw-bot@users.noreply.github.com"
           git add results/
-          git commit -m "🦞 sweep ${TIMESTAMP}: auto hyperparameter search results" || echo "No new results to commit"
+          git commit -m "🦞 sweep ${TIMESTAMP}: v3 focused sweet-spot search" || echo "No new results to commit"
           git push
