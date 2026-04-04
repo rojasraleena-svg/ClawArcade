@@ -68,25 +68,26 @@ jobs:
               experiments.append({'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'epochs': 50, 'momentum': mom})
 
           # ─── Phase 4: Extended epochs for top configs (bs=128 only to avoid timeout) ───
+          # Best from sweep v3: lr=0.005, wd=5e-05, bs=128, ep=65 → 72.56%
           for cfg in [
-              {'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},   # 72.07% best
-              {'lr': 0.005, 'weight_decay': 5e-5, 'batch_size': 128, 'momentum': 0.9},   # 71.55%
-              {'lr': 0.0045, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},  # explore slightly lower lr
-              {'lr': 0.0055, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},  # explore slightly higher lr
-              {'lr': 0.005, 'weight_decay': 1.5e-4, 'batch_size': 128, 'momentum': 0.9}, # between best wd values
-              {'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.91},  # slight mom variation
-              {'lr': 0.005, 'weight_decay': 0.0, 'batch_size': 128, 'momentum': 0.9},    # baseline (71.77%)
+              {'lr': 0.005, 'weight_decay': 5e-5, 'batch_size': 128, 'momentum': 0.9},    # ★ 72.56% best!
+              {'lr': 0.005, 'weight_decay': 7.5e-5, 'batch_size': 128, 'momentum': 0.9},  # between best wd values
+              {'lr': 0.005, 'weight_decay': 1e-4, 'batch_size': 128, 'momentum': 0.9},     # 72.07% solid
+              {'lr': 0.0045, 'weight_decay': 5e-5, 'batch_size': 128, 'momentum': 0.9},   # lower lr + lower wd combo
+              {'lr': 0.0055, 'weight_decay': 5e-5, 'batch_size': 128, 'momentum': 0.9},   # higher lr + lower wd
+              {'lr': 0.005, 'weight_decay': 5e-5, 'batch_size': 128, 'momentum': 0.91},   # best config + higher mom
+              {'lr': 0.005, 'weight_decay': 5e-5, 'batch_size': 128, 'momentum': 0.89},   # best config + lower mom
           ]:
-              cfg['epochs'] = 65  # push further, keep bs=128
+              cfg['epochs'] = 60  # safe within 720s timeout
               experiments.append(cfg)
 
-          # ─── Phase 5: Focused random in narrowed region ───
-          for _ in range(5):
+          # ─── Phase 5: Focused random in narrowed region (around new best) ───
+          for _ in range(6):
               experiments.append({
                   'lr': round(random.uniform(0.004, 0.006), 4),
-                  'weight_decay': round(random.choice([5e-5, 7.5e-5, 1e-4, 1.5e-4, 2e-4]), 5),
+                  'weight_decay': round(random.choice([3e-5, 5e-5, 7.5e-5, 1e-4, 1.5e-4]), 5),
                   'batch_size': 128,
-                  'epochs': random.choice([50, 55, 60, 65]),
+                  'epochs': random.choice([50, 55, 60]),
                   'momentum': round(random.uniform(0.88, 0.92), 2),
               })
 
@@ -125,7 +126,7 @@ jobs:
               ]
               print(f'--- Run {run_id}/{len(experiments)}: lr={cfg[\"lr\"]} wd={cfg[\"weight_decay\"]} bs={cfg[\"batch_size\"]} ep={cfg[\"epochs\"]} mom={cfg[\"momentum\"]} ---')
 
-              result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+              result = subprocess.run(cmd, capture_output=True, text=True, timeout=720)
 
               if result.returncode == 0:
                   lines = result.stdout.strip().split('\n')
