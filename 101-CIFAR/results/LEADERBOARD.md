@@ -1,6 +1,6 @@
 # 🦞 Cifarcade Leaderboard
 
-Auto-generated from sweep experiments. Updated: Sat Apr  4 06:25:53 UTC 2026
+Auto-generated from sweep experiments. Updated: Sat Apr  4 12:57:35 UTC 2026
 
 | Rank | LR | Weight Decay | Batch Size | Momentum | Epochs | Best Acc | Final Acc | Sweep |
 |------|-----|-------------|-----------|----------|--------|----------|-----------|-------|
@@ -10,5 +10,3 @@ Auto-generated from sweep experiments. Updated: Sat Apr  4 06:25:53 UTC 2026
 | 4 | 0.0058 | 0.0002 | 128 | 0.91 | 65 | 0.7261 | 0.7211 | 20260403-063212 |
 | 5 | 0.005 | 0.0001 | 128 | 0.9 | 65 | 0.7256 | 0.7138 | 20260403-063212 |
 | 6 | 0.005 | 0.0 | 128 | 0.9 | 65 | 0.7253 | 0.7110 | 20260403-063212 |
-| 7 | 0.0055 | 0.0001 | 128 | 0.9 | 65 | 0.7244 | 0.7073 | 20260403-063212 |
-| 8 | 0.0052 | 5e-05 | 128 | 0.91 | 60 | 0.7222 | 0.7193 | 20260403-063212 |
