@@ -200,6 +200,20 @@ jobs:
 
           git config user.name "openclaw-bot"
           git config user.email "openclaw-bot@users.noreply.github.com"
-          git add results/
+
+          # Pull latest first to avoid rebase conflicts from concurrent runs
+          git pull --no-rebase --no-edit 2>/dev/null || true
+
+          # Stage only new result files (avoid conflicts on existing files)
+          git add results/sweep-${TIMESTAMP}.csv results/sweep-${TIMESTAMP}.json results/LEADERBOARD.md
           git commit -m "🦞 sweep ${TIMESTAMP}: v3 focused sweet-spot search" || echo "No new results to commit"
-          git pull --rebase --no-edit && git push
+
+          # Push with retry for concurrent runs
+          for attempt in 1 2 3; do
+            git pull --no-rebase --no-edit 2>/dev/null || true
+            if git push; then
+              break
+            fi
+            echo "Push attempt $attempt failed, retrying in 5s..."
+            sleep 5
+          done
