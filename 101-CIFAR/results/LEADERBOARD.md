@@ -1,6 +1,6 @@
 # 🦞 Cifarcade Leaderboard
 
-Auto-generated from sweep experiments. Updated: Mon Apr 27 14:39:20 UTC 2026
+Auto-generated from sweep experiments. Updated: Mon Apr 27 21:46:33 UTC 2026
 
 | Rank | LR | Weight Decay | Batch Size | Momentum | Epochs | Best Acc | Final Acc | Sweep |
 |------|-----|-------------|-----------|----------|--------|----------|-----------|-------|
